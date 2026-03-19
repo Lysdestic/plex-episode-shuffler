@@ -11,6 +11,62 @@ const EXAMPLE_ENV_PATH = path.resolve(process.cwd(), ".env.example");
 const TRUE_VALUES = new Set(["1", "true", "yes", "y", "on"]);
 const FALSE_VALUES = new Set(["0", "false", "no", "n", "off"]);
 
+const COLOR_ENABLED = process.stdout.isTTY && !Object.hasOwn(process.env, "NO_COLOR");
+
+const ANSI = {
+  reset: "\x1b[0m",
+  bold: "\x1b[1m",
+  dim: "\x1b[2m",
+  cyan: "\x1b[36m",
+  blue: "\x1b[34m",
+  green: "\x1b[32m",
+  yellow: "\x1b[33m",
+  red: "\x1b[31m",
+  magenta: "\x1b[35m",
+};
+
+function style(text, ...codes) {
+  if (!COLOR_ENABLED) return text;
+  return `${codes.join("")}${text}${ANSI.reset}`;
+}
+
+function heading(text) {
+  return style(text, ANSI.bold, ANSI.cyan);
+}
+
+function accent(text) {
+  return style(text, ANSI.bold, ANSI.blue);
+}
+
+function info(text) {
+  return style(text, ANSI.cyan);
+}
+
+function muted(text) {
+  return style(text, ANSI.dim);
+}
+
+function good(text) {
+  return style(text, ANSI.green);
+}
+
+function warn(text) {
+  return style(text, ANSI.yellow);
+}
+
+function bad(text) {
+  return style(text, ANSI.red);
+}
+
+function section(title) {
+  console.log(heading(`== ${title} ==`));
+}
+
+function formatPrompt(label, fallback = "") {
+  const suffix = fallback ? ` ${muted(`[${fallback}]`)}` : "";
+  return `${accent("?")} ${label}${suffix}: `;
+}
+
 async function loadEnvValues(filePath) {
   try {
     const raw = await fs.readFile(filePath, "utf8");
@@ -40,9 +96,9 @@ function uniqueTitles(items) {
 
 function printOptions(label, options) {
   if (!options || options.length === 0) return;
-  console.log(`Available ${label}:`);
+  section(`Available ${label}`);
   options.forEach((option, index) => {
-    console.log(`${index + 1}. ${option}`);
+    console.log(`${style(String(index + 1).padStart(2, " "), ANSI.magenta, ANSI.bold)}. ${option}`);
   });
   console.log("");
 }
@@ -90,11 +146,10 @@ function resolveMultiOptions(value, options) {
 
 async function promptWithOptions(rl, label, fallback, options, { multi = false } = {}) {
   while (true) {
-    const suffix = fallback ? ` [${fallback}]` : "";
-    const answer = (await rl.question(`${label}${suffix}: `)).trim();
+    const answer = (await rl.question(formatPrompt(label, fallback))).trim();
     const value = answer || fallback;
     if (!value) {
-      console.log(`${label} is required.`);
+      console.log(bad(`${label} is required.`));
       continue;
     }
 
@@ -106,14 +161,16 @@ async function promptWithOptions(rl, label, fallback, options, { multi = false }
       const resolved = resolveMultiOptions(value, options);
       if (resolved != null) return resolved;
       console.log(
-        `Invalid selection. Enter client names, numbers, or ranges (for example: 1,3-5) from 1-${options.length}.`,
+        warn(
+          `Invalid selection. Enter client names, numbers, or ranges (for example: 1,3-5) from 1-${options.length}.`,
+        ),
       );
       continue;
     }
 
     const resolved = resolveSingleOption(value, options);
     if (resolved != null) return resolved;
-    console.log(`Invalid selection. Enter a name or a number from 1-${options.length}.`);
+    console.log(warn(`Invalid selection. Enter a name or a number from 1-${options.length}.`));
   }
 }
 
@@ -137,22 +194,31 @@ function buildEnvFile(values) {
 
 async function promptNonEmpty(rl, label, fallback = "") {
   while (true) {
-    const suffix = fallback ? ` [${fallback}]` : "";
-    const answer = (await rl.question(`${label}${suffix}: `)).trim();
+    const answer = (await rl.question(formatPrompt(label, fallback))).trim();
     const value = answer || fallback;
     if (value) return value;
-    console.log(`${label} is required.`);
+    console.log(bad(`${label} is required.`));
   }
 }
 
 async function promptBoolean(rl, label, fallback = "true") {
   while (true) {
     const current = fallback === "false" ? "false" : "true";
-    const answer = await rl.question(`${label} (${current}) [true/false]: `);
+    const answer = await rl.question(formatPrompt(`${label} [true/false]`, current));
     const parsed = parseBooleanInput(answer || fallback, fallback);
     if (parsed) return parsed;
-    console.log("Please enter true or false.");
+    console.log(warn("Please enter true or false."));
   }
+}
+
+function printSummary(values) {
+  section("Summary");
+  console.log(`${muted("PLEX_URL")}: ${values.PLEX_URL}`);
+  console.log(`${muted("PLEX_CLIENTS")}: ${values.PLEX_CLIENTS}`);
+  console.log(`${muted("PLEX_LIBRARY")}: ${values.PLEX_LIBRARY}`);
+  console.log(`${muted("PLEX_COLLECTION")}: ${values.PLEX_COLLECTION}`);
+  console.log(`${muted("PLEX_SHUFFLE_CONTINUOUS")}: ${values.PLEX_SHUFFLE_CONTINUOUS}`);
+  console.log("");
 }
 
 async function main() {
@@ -187,11 +253,12 @@ async function main() {
   });
 
   try {
-    console.log("Plex Episode Shuffler interactive setup");
-    console.log("Press Enter to accept a default value.");
-    console.log("For discovered options, you can type a name or its number.");
+    section("Plex Collection Shuffler Setup");
+    console.log(info("Interactive configuration wizard"));
+    console.log(muted("Press Enter to accept defaults. For discovered options, you can type a name or its number."));
     console.log("");
 
+    section("Connection");
     const values = {
       PLEX_URL: await promptNonEmpty(rl, "Plex server URL", defaults.PLEX_URL),
       PLEX_TOKEN: await promptNonEmpty(rl, "Plex token", defaults.PLEX_TOKEN),
@@ -209,7 +276,7 @@ async function main() {
       clientOptions = uniqueTitles(clients.map((client) => client.title));
       printOptions("clients", clientOptions);
     } catch (error) {
-      console.warn(`Warning: could not load clients (${error.message})`);
+      console.warn(warn(`Warning: could not load clients (${error.message})`));
       console.log("");
     }
 
@@ -217,20 +284,26 @@ async function main() {
       sections = await plex.listLibrarySections();
       printOptions("libraries", uniqueTitles(sections.map((section) => section.title)));
     } catch (error) {
-      console.warn(`Warning: could not load libraries (${error.message})`);
+      console.warn(warn(`Warning: could not load libraries (${error.message})`));
       console.log("");
     }
 
+    section("Playback Targets");
     values.PLEX_CLIENTS = await promptWithOptions(
       rl,
-      "Plex clients (comma-separated names or numbers)",
+      "Plex clients (comma-separated names/numbers/ranges)",
       defaults.PLEX_CLIENTS,
       clientOptions,
       { multi: true },
     );
 
     const libraryOptions = uniqueTitles(sections.map((section) => section.title));
-    values.PLEX_LIBRARY = await promptWithOptions(rl, "Plex library title (name or number)", defaults.PLEX_LIBRARY, libraryOptions);
+    values.PLEX_LIBRARY = await promptWithOptions(
+      rl,
+      "Plex library title (name or number)",
+      defaults.PLEX_LIBRARY,
+      libraryOptions,
+    );
 
     let collections = [];
     const selectedSection = sections.find((section) => normalize(section.title) === normalize(values.PLEX_LIBRARY));
@@ -239,11 +312,11 @@ async function main() {
         collections = await plex.listCollections(selectedSection.key);
         printOptions("collections", uniqueTitles(collections.map((collection) => collection.title)));
       } catch (error) {
-        console.warn(`Warning: could not load collections (${error.message})`);
+        console.warn(warn(`Warning: could not load collections (${error.message})`));
         console.log("");
       }
     } else if (sections.length > 0) {
-      console.warn("Warning: selected library did not match discovered libraries; skipping collection discovery.");
+      console.warn(warn("Warning: selected library did not match discovered libraries; skipping collection discovery."));
       console.log("");
     }
 
@@ -254,27 +327,32 @@ async function main() {
       defaults.PLEX_COLLECTION,
       collectionOptions,
     );
+
+    section("Behavior");
     values.PLEX_SHUFFLE_CONTINUOUS = await promptBoolean(
       rl,
       "Use shuffled continuous play queue",
       defaults.PLEX_SHUFFLE_CONTINUOUS,
     );
 
-    const confirmation = await rl.question(`Write configuration to ${ENV_PATH}? [Y/n]: `);
-    const normalized = confirmation.trim().toLowerCase();
-    if (normalized && normalized !== "y" && normalized !== "yes") {
-      console.log("Cancelled. No changes were written.");
+    console.log("");
+    printSummary(values);
+
+    const confirmation = await rl.question(formatPrompt(`Write configuration to ${ENV_PATH}`, "Y"));
+    const normalizedAnswer = confirmation.trim().toLowerCase();
+    if (normalizedAnswer && normalizedAnswer !== "y" && normalizedAnswer !== "yes") {
+      console.log(warn("Cancelled. No changes were written."));
       return;
     }
 
     await fs.writeFile(ENV_PATH, buildEnvFile(values), "utf8");
-    console.log(`Saved ${ENV_PATH}`);
+    console.log(good(`Saved ${ENV_PATH}`));
   } finally {
     rl.close();
   }
 }
 
 main().catch((error) => {
-  console.error(`Setup error: ${error.message}`);
+  console.error(bad(`Setup error: ${error.message}`));
   process.exitCode = 1;
 });
