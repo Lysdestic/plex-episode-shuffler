@@ -26,7 +26,7 @@ Play a random episode from a Plex collection to one or more Plex clients.
    ```bash
    npm run setup
    ```
-3. Follow the prompts and save the generated `.env`.
+3. Follow the prompts. The setup script shows discovered clients, libraries, and collections, and you can pick by name or number (clients also support ranges like `1-3`) before it saves the generated `.env`.
 
 Manual alternative:
 ```bash

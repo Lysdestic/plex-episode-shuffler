@@ -223,10 +223,34 @@ export class PlexApi {
     return [...unique.values()];
   }
 
-  async findLibrarySectionByName(sectionName) {
+  async listLibrarySections() {
     const body = await this.request("/library/sections");
     const container = toMediaContainer(body);
     const sections = ensureArray(container.Directory);
+
+    return sections
+      .map((section) => ({
+        key: section.key,
+        title: section.title,
+      }))
+      .filter((section) => section.key && section.title);
+  }
+
+  async listCollections(sectionKey) {
+    const body = await this.request(`/library/sections/${sectionKey}/collections`);
+    const container = toMediaContainer(body);
+    const collections = ensureArray(container.Directory);
+
+    return collections
+      .map((collection) => ({
+        key: collection.key,
+        title: collection.title,
+      }))
+      .filter((collection) => collection.key && collection.title);
+  }
+
+  async findLibrarySectionByName(sectionName) {
+    const sections = await this.listLibrarySections();
 
     const normalized = sectionName.trim().toLowerCase();
     const match = sections.find((section) => (section.title || "").trim().toLowerCase() === normalized);
@@ -243,9 +267,7 @@ export class PlexApi {
   }
 
   async findCollectionByName(sectionKey, collectionName) {
-    const body = await this.request(`/library/sections/${sectionKey}/collections`);
-    const container = toMediaContainer(body);
-    const collections = ensureArray(container.Directory);
+    const collections = await this.listCollections(sectionKey);
 
     const normalized = collectionName.trim().toLowerCase();
     const match = collections.find((collection) =>
