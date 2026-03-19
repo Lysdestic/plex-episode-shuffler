@@ -2,6 +2,7 @@
   "name": "random-plex-episode",
   "version": "1.0.0",
   "description": "Play a random episode from a Plex collection on one or more Plex clients.",
+  "license": "MIT",
   "type": "module",
   "main": "src/index.js",
   "scripts": {
