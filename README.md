@@ -5,7 +5,8 @@ Play a random episode from a Plex collection to one or more Plex clients.
 ## Project Status
 
 - Node.js only project
-- Single command run: `npm start`
+- CLI run mode: `npm start`
+- Webhook run mode for Home Assistant: `npm run webhook`
 
 ## Features
 
@@ -44,6 +45,69 @@ cp .env.example .env
 npm start
 ```
 
+## Webhook Mode (Home Assistant)
+
+Run webhook mode so Home Assistant can trigger playback:
+
+```bash
+npm run webhook
+```
+
+### Docker Compose
+
+Run as a persistent container service:
+
+```bash
+cp .env.example .env  # if needed, then edit values
+docker compose up -d --build
+```
+
+Useful commands:
+
+```bash
+docker compose logs -f
+docker compose restart
+docker compose down
+```
+
+When running via Docker, Home Assistant should call:
+
+- `http://<docker-host-ip>:8787/play`
+
+Optional env vars for webhook mode:
+
+- `PLEX_WEBHOOK_HOST` (optional): bind address, default `0.0.0.0`
+- `PLEX_WEBHOOK_PORT` (optional): port, default `8787`
+- `PLEX_WEBHOOK_TOKEN` (optional but recommended): bearer/header/query token required for `/play`
+
+Endpoints:
+
+- `GET /health`: health + in-flight status
+- `POST /play`: trigger one random-episode playback run
+
+Home Assistant example (`configuration.yaml`):
+
+```yaml
+rest_command:
+  plex_collection_shuffle:
+    url: "http://YOUR_HOST_IP:8787/play"
+    method: POST
+    headers:
+      authorization: "Bearer YOUR_WEBHOOK_TOKEN"
+```
+
+Automation example:
+
+```yaml
+automation:
+  - alias: Play random Plex episode
+    trigger:
+      - platform: state
+        entity_id: input_button.play_random_plex
+    action:
+      - service: rest_command.plex_collection_shuffle
+```
+
 ## Test
 
 ```bash
@@ -59,6 +123,9 @@ npm test
 - `PLEX_LIBRARY` (required): Library title, e.g. `TV Shows`
 - `PLEX_COLLECTION` (required): Collection title
 - `PLEX_SHUFFLE_CONTINUOUS` (optional): `true`/`false`, default `true`
+- `PLEX_WEBHOOK_HOST` (optional): Host bind for webhook mode, default `0.0.0.0`
+- `PLEX_WEBHOOK_PORT` (optional): Port for webhook mode, default `8787`
+- `PLEX_WEBHOOK_TOKEN` (optional): Required token for `/play` if set
 
 ## Notes
 

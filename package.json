@@ -10,7 +10,8 @@
     "start": "node src/index.js",
     "test": "node --test",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "webhook": "node src/webhook.js"
   },
   "engines": {
     "node": ">=20"

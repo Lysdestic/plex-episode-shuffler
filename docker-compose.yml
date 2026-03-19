@@ -1,0 +1,12 @@
+services:
+  plex-collection-shuffler:
+    build: .
+    container_name: plex-collection-shuffler
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      PLEX_WEBHOOK_HOST: 0.0.0.0
+      PLEX_WEBHOOK_PORT: 8787
+    ports:
+      - "8787:8787"
